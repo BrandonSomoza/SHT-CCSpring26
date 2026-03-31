@@ -1,1 +1,1 @@
-# SHT-CCSpring26
+# Smart Health Tracker
