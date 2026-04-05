@@ -1,0 +1,27 @@
+﻿services:
+  node-a:
+    build: .
+    container_name: sht-node-a
+    environment:
+      - NODE_ID=A
+      - PORT=3001
+    ports:
+      - "3001:3001"
+
+  node-b:
+    build: .
+    container_name: sht-node-b
+    environment:
+      - NODE_ID=B
+      - PORT=3002
+    ports:
+      - "3002:3002"
+
+  node-c:
+    build: .
+    container_name: sht-node-c
+    environment:
+      - NODE_ID=C
+      - PORT=3003
+    ports:
+      - "3003:3003"
