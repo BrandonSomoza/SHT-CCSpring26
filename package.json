@@ -1,8 +1,8 @@
-﻿{
+{
   "name": "sht-ccspring26",
   "version": "1.0.0",
   "type": "module",
-  "description": "Smart Health Tracker - Multi-Cloud IoT Health Monitoring Platform",
+  "description": "Smart Health Tracker",
   "scripts": {
     "start": "node p2p/node.js"
   },
@@ -10,6 +10,7 @@
     "libp2p": "3.1.7",
     "@libp2p/tcp": "11.0.14",
     "@chainsafe/libp2p-noise": "17.0.0",
-    "@libp2p/yamux": "8.0.1"
+    "@libp2p/yamux": "8.0.1",
+    "@libp2p/identify": "4.0.0"
   }
 }
