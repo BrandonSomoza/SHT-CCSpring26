@@ -20,6 +20,8 @@ services:
     environment:
       - NODE_ID=B
       - PORT=3002
+      - PEER_HOSTS=sht-node-a,sht-node-c
+      - PEER_PORTS=3001,3003
     ports:
       - "3002:3002"
       - "4002:4002"
@@ -33,6 +35,8 @@ services:
     environment:
       - NODE_ID=C
       - PORT=3003
+      - PEER_HOSTS=sht-node-a,sht-node-b
+      - PEER_PORTS=3001,3002
     ports:
       - "3003:3003"
       - "4003:4003"
