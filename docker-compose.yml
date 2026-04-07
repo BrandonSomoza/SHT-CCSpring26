@@ -1,12 +1,18 @@
-﻿services:
+services:
   node-a:
     build: .
     container_name: sht-node-a
     environment:
       - NODE_ID=A
       - PORT=3001
+      - PEER_HOSTS=sht-node-b,sht-node-c
+      - PEER_PORTS=3002,3003
     ports:
       - "3001:3001"
+      - "4001:4001"
+      - "5001:5001"
+    networks:
+      - sht-network
 
   node-b:
     build: .
@@ -16,6 +22,10 @@
       - PORT=3002
     ports:
       - "3002:3002"
+      - "4002:4002"
+      - "5002:5002"
+    networks:
+      - sht-network
 
   node-c:
     build: .
@@ -25,3 +35,11 @@
       - PORT=3003
     ports:
       - "3003:3003"
+      - "4003:4003"
+      - "5003:5003"
+    networks:
+      - sht-network
+
+networks:
+  sht-network:
+    driver: bridge
