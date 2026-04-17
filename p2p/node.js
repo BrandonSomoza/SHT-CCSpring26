@@ -10,6 +10,7 @@ import net from 'net'
 const NODE_ID = process.env.NODE_ID || 'A'
 const PORT = parseInt(process.env.PORT) || 3001
 const HTTP_PORT = PORT + 1000
+const SENSOR_PORT = PORT + 3000  // A:6001, B:6002, C:6003
 const ALERT_PORT = PORT + 2000  // A:5001, B:5002, C:5003
 const PEER_HOSTS = process.env.PEER_HOSTS ? process.env.PEER_HOSTS.split(',') : []
 const PEER_PORTS = process.env.PEER_PORTS ? process.env.PEER_PORTS.split(',') : []
@@ -28,31 +29,6 @@ console.log('Node ' + NODE_ID + ' started')
 console.log('Peer ID: ' + node.peerId.toString())
 console.log('Listening on port ' + PORT)
 
-// ── IoT Sensor Simulator ───────────────────────────────────────────────────
-// Simulates a health monitoring wearable device
-function generateSensorData() {
-  // Occasionally generate high-risk values for demo purposes (20% chance)
-  const isHighRisk = Math.random() < 0.2
-
-  const heartRate = isHighRisk
-    ? Math.floor(Math.random() * 30) + 120   // 120-150 bpm (high)
-    : Math.floor(Math.random() * 40) + 60    // 60-100 bpm (normal)
-
-  const temperature = isHighRisk
-    ? parseFloat((Math.random() * 1.5 + 37.5).toFixed(1))  // 37.5-39.0 C (fever)
-    : parseFloat((Math.random() * 1.0 + 36.0).toFixed(1))  // 36.0-37.0 C (normal)
-
-  const steps = Math.floor(Math.random() * 200)
-
-  return { heartRate, temperature, steps }
-}
-
-function assessRisk(data) {
-  // Simple rule-based risk assessment (will be replaced by SageMaker later)
-  if (data.heartRate > 120 || data.temperature > 37.5) return 'High'
-  if (data.heartRate > 100 || data.temperature > 37.0) return 'Medium'
-  return 'Low'
-}
 
 // ── Alert server (receives P2P alerts from other nodes) ───────────────────
 const alertServer = net.createServer((socket) => {
@@ -79,6 +55,43 @@ const httpServer = http.createServer((req, res) => {
 })
 httpServer.listen(HTTP_PORT, () => {
   console.log('[' + NODE_ID + '] HTTP info server on port ' + HTTP_PORT)
+})
+// ── Sensor data receiver (from Python simulator) ──────────────────────────
+const sensorServer = http.createServer((req, res) => {
+  if (req.method === 'POST' && req.url === '/sensor-data') {
+    let body = ''
+    req.on('data', chunk => body += chunk)
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body)
+        console.log(
+          '[' + NODE_ID + '] Sensor data | ' +
+          'Heart rate: ' + data.heart_rate + ' bpm | ' +
+          'Temp: ' + data.temperature + ' C | ' +
+          'Oxygen: ' + data.oxygen_level + '% | ' +
+          'Risk: ' + data.risk
+        )
+        if (data.risk === 'High' && connectedPeers.length > 0) {
+          const alertMsg =
+            'HEALTH ALERT from Node ' + NODE_ID + ': ' +
+            'High risk detected! ' +
+            'Heart rate: ' + data.heart_rate + ' bpm, ' +
+            'Temp: ' + data.temperature + ' C, ' +
+            'Oxygen: ' + data.oxygen_level + '%'
+          await broadcastAlert(alertMsg)
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status: 'ok' }))
+      } catch (err) {
+        res.writeHead(400); res.end('Bad request')
+      }
+    })
+  } else {
+    res.writeHead(404); res.end()
+  }
+})
+sensorServer.listen(SENSOR_PORT, () => {
+  console.log('[' + NODE_ID + '] Sensor receiver on port ' + SENSOR_PORT)
 })
 
 function fetchPeerId(host, port) {
@@ -145,42 +158,7 @@ if (PEER_HOSTS.length > 0) {
       }
     }
 
-    // Start sensor simulation after connecting to peers
-    startSensorSimulation()
   }, 5000)
-} else {
-  // Nodes with no peers (B and C) also simulate sensors
-  setTimeout(startSensorSimulation, 5000)
-}
+} 
 
-// ── IoT Sensor Simulation Loop ─────────────────────────────────────────────
-function startSensorSimulation() {
-  console.log('[' + NODE_ID + '] Starting IoT sensor simulation (every 30s)...')
 
-  async function runSensor() {
-    const data = generateSensorData()
-    const risk = assessRisk(data)
-
-    console.log(
-      '[' + NODE_ID + '] Sensor data | ' +
-      'Heart rate: ' + data.heartRate + ' bpm | ' +
-      'Temp: ' + data.temperature + ' C | ' +
-      'Steps: ' + data.steps + ' | ' +
-      'Risk: ' + risk
-    )
-
-    // If High risk, broadcast alert to all peers via P2P
-    if (risk === 'High' && connectedPeers.length > 0) {
-      const alertMsg =
-        'HEALTH ALERT from Node ' + NODE_ID + ': ' +
-        'High risk detected! ' +
-        'Heart rate: ' + data.heartRate + ' bpm, ' +
-        'Temp: ' + data.temperature + ' C'
-      await broadcastAlert(alertMsg)
-    }
-  }
-
-  // Run immediately, then every 30 seconds
-  runSensor()
-  setInterval(runSensor, 30000)
-}
