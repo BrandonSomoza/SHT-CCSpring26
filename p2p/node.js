@@ -3,6 +3,7 @@ import { tcp } from '@libp2p/tcp'
 import { yamux } from '@libp2p/yamux'
 import { noise } from '@chainsafe/libp2p-noise'
 import { identify } from '@libp2p/identify'
+import { SNSClient, PublishCommand } from '@aws-sdk/client-sns'
 import dns from 'dns/promises'
 import http from 'http'
 import net from 'net'
@@ -14,6 +15,34 @@ const SENSOR_PORT = PORT + 3000  // A:6001, B:6002, C:6003
 const ALERT_PORT = PORT + 2000  // A:5001, B:5002, C:5003
 const PEER_HOSTS = process.env.PEER_HOSTS ? process.env.PEER_HOSTS.split(',') : []
 const PEER_PORTS = process.env.PEER_PORTS ? process.env.PEER_PORTS.split(',') : []
+
+// ── AWS SNS Setup (each node has its own Topic) ──────────────────────────
+const SNS_TOPIC_ARN = process.env['SNS_TOPIC_ARN_' + NODE_ID] || ''
+const snsClient = SNS_TOPIC_ARN ? new SNSClient({
+  region: process.env.AWS_REGION || 'us-east-2',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
+  }
+}) : null
+
+async function sendSNSAlert(subject, message) {
+  if (!snsClient) {
+    console.log('[' + NODE_ID + '] SNS not configured, skipping email alert')
+    return
+  }
+  try {
+    const command = new PublishCommand({
+      TopicArn: SNS_TOPIC_ARN,
+      Subject: subject,
+      Message: message
+    })
+    await snsClient.send(command)
+    console.log('[' + NODE_ID + '] SNS email alert sent to topic: sht-alerts-node-' + NODE_ID.toLowerCase())
+  } catch (err) {
+    console.error('[' + NODE_ID + '] SNS error: ' + err.message)
+  }
+}
 
 // Start libp2p node
 const node = await createLibp2p({
@@ -28,15 +57,32 @@ await node.start()
 console.log('Node ' + NODE_ID + ' started')
 console.log('Peer ID: ' + node.peerId.toString())
 console.log('Listening on port ' + PORT)
+if (snsClient) {
+  console.log('[' + NODE_ID + '] AWS SNS enabled, topic: ' + SNS_TOPIC_ARN)
+} else {
+  console.log('[' + NODE_ID + '] AWS SNS not configured (no SNS_TOPIC_ARN_' + NODE_ID + ')')
+}
 
 
 // ── Alert server (receives P2P alerts from other nodes) ───────────────────
 const alertServer = net.createServer((socket) => {
   let data = ''
   socket.on('data', chunk => data += chunk)
-  socket.on('end', () => {
+  socket.on('end', async () => {
     if (data) {
-      console.log('[' + NODE_ID + '] *** RECEIVED ALERT: ' + data.trim() + ' ***')
+      const msg = data.trim()
+      console.log('[' + NODE_ID + '] *** RECEIVED ALERT: ' + msg + ' ***')
+
+      // Send SNS email when receiving alert from another node
+      if (msg.includes('HEALTH ALERT')) {
+        await sendSNSAlert(
+          'Smart Health Tracker - Alert Received by Node ' + NODE_ID,
+          'Node ' + NODE_ID + ' received the following health alert:\n\n' +
+          msg + '\n\n' +
+          'This alert was broadcast via the P2P network.\n' +
+          'Time: ' + new Date().toISOString()
+        )
+      }
     }
   })
 })
@@ -71,14 +117,30 @@ const sensorServer = http.createServer((req, res) => {
           'Oxygen: ' + data.oxygen_level + '% | ' +
           'Risk: ' + data.risk
         )
-        if (data.risk === 'High' && connectedPeers.length > 0) {
+        if (data.risk === 'High') {
           const alertMsg =
             'HEALTH ALERT from Node ' + NODE_ID + ': ' +
             'High risk detected! ' +
             'Heart rate: ' + data.heart_rate + ' bpm, ' +
             'Temp: ' + data.temperature + ' C, ' +
             'Oxygen: ' + data.oxygen_level + '%'
-          await broadcastAlert(alertMsg)
+
+          // Send SNS email for self-detected High risk
+          await sendSNSAlert(
+            'Smart Health Tracker - High Risk on Node ' + NODE_ID,
+            'Node ' + NODE_ID + ' detected abnormal health data:\n\n' +
+            'Heart rate: ' + data.heart_rate + ' bpm\n' +
+            'Temperature: ' + data.temperature + ' C\n' +
+            'Oxygen level: ' + data.oxygen_level + '%\n' +
+            'Risk level: HIGH\n\n' +
+            'Immediate attention may be required.\n' +
+            'Time: ' + new Date().toISOString()
+          )
+
+          // Broadcast to peers via P2P
+          if (connectedPeers.length > 0) {
+            await broadcastAlert(alertMsg)
+          }
         }
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ status: 'ok' }))
@@ -159,6 +221,4 @@ if (PEER_HOSTS.length > 0) {
     }
 
   }, 5000)
-} 
-
-
+}
