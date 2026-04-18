@@ -1,27 +1,97 @@
-﻿services:
+services:
   node-a:
     build: .
     container_name: sht-node-a
+    env_file: .env
     environment:
       - NODE_ID=A
       - PORT=3001
+      - PEER_HOSTS=sht-node-b,sht-node-c
+      - PEER_PORTS=3002,3003
     ports:
       - "3001:3001"
+      - "4001:4001"
+      - "5001:5001"
+      - "6001:6001"
+    networks:
+      - sht-network
 
   node-b:
     build: .
     container_name: sht-node-b
+    env_file: .env
     environment:
       - NODE_ID=B
       - PORT=3002
+      - PEER_HOSTS=sht-node-a,sht-node-c
+      - PEER_PORTS=3001,3003
     ports:
       - "3002:3002"
+      - "4002:4002"
+      - "5002:5002"
+      - "6002:6002"
+    networks:
+      - sht-network
 
   node-c:
     build: .
     container_name: sht-node-c
+    env_file: .env
     environment:
       - NODE_ID=C
       - PORT=3003
+      - PEER_HOSTS=sht-node-a,sht-node-b
+      - PEER_PORTS=3001,3002
     ports:
       - "3003:3003"
+      - "4003:4003"
+      - "5003:5003"
+      - "6003:6003"
+    networks:
+      - sht-network
+
+  simulator-a:
+    build:
+      context: ./iot-simulator
+      dockerfile: Dockerfile
+    container_name: sht-simulator-a
+    env_file: .env
+    environment:
+      - NODE_URL=http://sht-node-a:6001/sensor-data
+      - IOTHUB_CONNECTION_STRING=${IOTHUB_DEVICE_CONNECTION_STRING_A}
+    depends_on:
+      - node-a
+    networks:
+      - sht-network
+
+  simulator-b:
+    build:
+      context: ./iot-simulator
+      dockerfile: Dockerfile
+    container_name: sht-simulator-b
+    env_file: .env
+    environment:
+      - NODE_URL=http://sht-node-b:6002/sensor-data
+      - IOTHUB_CONNECTION_STRING=${IOTHUB_DEVICE_CONNECTION_STRING_B}
+    depends_on:
+      - node-b
+    networks:
+      - sht-network
+
+  simulator-c:
+    build:
+      context: ./iot-simulator
+      dockerfile: Dockerfile
+    container_name: sht-simulator-c
+    env_file: .env
+    environment:
+      - NODE_URL=http://sht-node-c:6003/sensor-data
+      - IOTHUB_CONNECTION_STRING=${IOTHUB_DEVICE_CONNECTION_STRING_C}
+    depends_on:
+      - node-c
+    networks:
+      - sht-network
+
+networks:
+  sht-network:
+    driver: bridge
