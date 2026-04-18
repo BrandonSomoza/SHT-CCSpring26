@@ -11,6 +11,7 @@
     "@libp2p/tcp": "11.0.14",
     "@libp2p/yamux": "8.0.1",
     "@chainsafe/libp2p-noise": "17.0.0",
-    "@libp2p/identify": "4.0.0"
+    "@libp2p/identify": "4.0.0",
+    "@aws-sdk/client-sns": "^3.700.0"
   }
 }
