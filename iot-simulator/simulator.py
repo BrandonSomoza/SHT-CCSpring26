@@ -1,3 +1,4 @@
+import os
 import random
 import time
 import json
@@ -45,7 +46,7 @@ def generate_sensor_data():
 # Issue #9: Send data to P2P node via HTTP POST
 # ============================================================
 
-NODE_URL = "http://localhost:6001/sensor-data"
+NODE_URL = os.environ.get("NODE_URL", "http://localhost:6001/sensor-data")
 
 print("IoT Simulator started...")
 print(f"Sending to node: {NODE_URL}")
