@@ -94,7 +94,7 @@ app.post('/api/p2p-alert', (req, res) => {
 app.get('/api/nodes', (_req, res) => res.json(nodeData))
 app.get('/api/alerts', (_req, res) => res.json(alertHistory))
 
-app.get('*', (_req, res) => {
+app.get('/{*path}', (_req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'))
 })
 
