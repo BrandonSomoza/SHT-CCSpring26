@@ -1,4 +1,21 @@
 services:
+  # ── Backend API + Dashboard ─────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: sht-backend
+    environment:
+      - BACKEND_PORT=8080
+      - NODE_HOST_A=sht-node-a
+      - NODE_HOST_B=sht-node-b
+      - NODE_HOST_C=sht-node-c
+    ports:
+      - "8080:8080"
+    networks:
+      - sht-network
+
+  # ── P2P Nodes ───────────────────────────────────────────────────────────
   node-a:
     build: .
     container_name: sht-node-a
@@ -8,6 +25,7 @@ services:
       - PORT=3001
       - PEER_HOSTS=sht-node-b,sht-node-c
       - PEER_PORTS=3002,3003
+      - BACKEND_URL=http://sht-backend:8080
     ports:
       - "3001:3001"
       - "4001:4001"
@@ -25,6 +43,7 @@ services:
       - PORT=3002
       - PEER_HOSTS=sht-node-a,sht-node-c
       - PEER_PORTS=3001,3003
+      - BACKEND_URL=http://sht-backend:8080
     ports:
       - "3002:3002"
       - "4002:4002"
@@ -42,6 +61,7 @@ services:
       - PORT=3003
       - PEER_HOSTS=sht-node-a,sht-node-b
       - PEER_PORTS=3001,3002
+      - BACKEND_URL=http://sht-backend:8080
     ports:
       - "3003:3003"
       - "4003:4003"
@@ -50,6 +70,7 @@ services:
     networks:
       - sht-network
 
+  # ── IoT Simulators (send to backend, which forwards to P2P nodes) ───────
   simulator-a:
     build:
       context: ./iot-simulator
@@ -57,9 +78,10 @@ services:
     container_name: sht-simulator-a
     env_file: .env
     environment:
-      - NODE_URL=http://sht-node-a:6001/sensor-data
+      - NODE_URL=http://sht-backend:8080/api/sensor-data/A
       - IOTHUB_CONNECTION_STRING=${IOTHUB_DEVICE_CONNECTION_STRING_A}
     depends_on:
+      - backend
       - node-a
     networks:
       - sht-network
@@ -71,9 +93,10 @@ services:
     container_name: sht-simulator-b
     env_file: .env
     environment:
-      - NODE_URL=http://sht-node-b:6002/sensor-data
+      - NODE_URL=http://sht-backend:8080/api/sensor-data/B
       - IOTHUB_CONNECTION_STRING=${IOTHUB_DEVICE_CONNECTION_STRING_B}
     depends_on:
+      - backend
       - node-b
     networks:
       - sht-network
@@ -85,9 +108,10 @@ services:
     container_name: sht-simulator-c
     env_file: .env
     environment:
-      - NODE_URL=http://sht-node-c:6003/sensor-data
+      - NODE_URL=http://sht-backend:8080/api/sensor-data/C
       - IOTHUB_CONNECTION_STRING=${IOTHUB_DEVICE_CONNECTION_STRING_C}
     depends_on:
+      - backend
       - node-c
     networks:
       - sht-network
