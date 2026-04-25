@@ -9,6 +9,7 @@ import http from 'http'
 import net from 'net'
 
 const NODE_ID = process.env.NODE_ID || 'A'
+const BACKEND_URL = process.env.BACKEND_URL || ''
 const PORT = parseInt(process.env.PORT) || 3001
 const HTTP_PORT = PORT + 1000
 const SENSOR_PORT = PORT + 3000  // A:6001, B:6002, C:6003
@@ -72,6 +73,17 @@ const alertServer = net.createServer((socket) => {
     if (data) {
       const msg = data.trim()
       console.log('[' + NODE_ID + '] *** RECEIVED ALERT: ' + msg + ' ***')
+      // Forward P2P alert to backend dashboard (non-blocking)
+      if (BACKEND_URL && msg.includes('HEALTH ALERT')) {
+        const srcMatch = msg.match(/from Node (\w+)/)
+        const sourceNodeId = srcMatch ? srcMatch[1] : '?'
+        fetch(BACKEND_URL + '/api/p2p-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourceNodeId, receivingNodeId: NODE_ID, message: msg })
+        }).catch(() => {})
+      }
+
 
       // Send SNS email when receiving alert from another node
       if (msg.includes('HEALTH ALERT')) {
